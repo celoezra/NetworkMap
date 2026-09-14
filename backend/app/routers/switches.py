@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.database.connection import get_db
@@ -8,6 +8,7 @@ from app.schemas.domain import (
     SwitchPortUpdate, SwitchPortInDB
 )
 from app.services.audit import log_audit
+from app.security.auth import RequireRole
 
 router = APIRouter(prefix="/api/switches", tags=["Switches"])
 
@@ -56,24 +57,30 @@ def enrich_switch(sw: Switch, db: Session) -> SwitchInDB:
     )
 
 @router.get("", response_model=List[SwitchInDB])
-def list_switches(db: Session = Depends(get_db)):
-    switches = db.query(Switch).all()
+def list_switches(db: Session = Depends(get_db), x_unit_id: int = Header(None), current_user = Depends(RequireRole(["ADMIN", "TECNICO", "VISUALIZACAO"]))):
+    if not x_unit_id:
+        raise HTTPException(status_code=403, detail="X-Unit-ID header required")
+    switches = db.query(Switch).filter(Switch.unit_id == x_unit_id).all()
     return [enrich_switch(sw, db) for sw in switches]
 
 @router.get("/{switch_id}", response_model=SwitchInDB)
-def get_switch(switch_id: int, db: Session = Depends(get_db)):
-    sw = db.query(Switch).filter(Switch.id == switch_id).first()
+def get_switch(switch_id: int, db: Session = Depends(get_db), x_unit_id: int = Header(None), current_user = Depends(RequireRole(["ADMIN", "TECNICO", "VISUALIZACAO"]))):
+    if not x_unit_id:
+        raise HTTPException(status_code=403, detail="X-Unit-ID header required")
+    sw = db.query(Switch).filter(Switch.id == switch_id, Switch.unit_id == x_unit_id).first()
     if not sw:
         raise HTTPException(status_code=404, detail="Switch não encontrado")
     return enrich_switch(sw, db)
 
 @router.post("", response_model=SwitchInDB, status_code=201)
-def create_switch(payload: SwitchCreate, db: Session = Depends(get_db)):
-    existing = db.query(Switch).filter(Switch.hostname == payload.hostname).first()
+def create_switch(payload: SwitchCreate, db: Session = Depends(get_db), x_unit_id: int = Header(None), current_user = Depends(RequireRole(["ADMIN", "TECNICO"]))):
+    if not x_unit_id:
+        raise HTTPException(status_code=403, detail="X-Unit-ID header required")
+    existing = db.query(Switch).filter(Switch.hostname == payload.hostname, Switch.unit_id == x_unit_id).first()
     if existing:
-        raise HTTPException(status_code=400, detail="Já existe um switch com este Hostname")
+        raise HTTPException(status_code=400, detail="Já existe um switch com este Hostname na unidade")
 
-    sw = Switch(**payload.model_dump())
+    sw = Switch(**payload.model_dump(), unit_id=x_unit_id)
     db.add(sw)
     db.commit()
     db.refresh(sw)
@@ -84,7 +91,8 @@ def create_switch(payload: SwitchCreate, db: Session = Depends(get_db)):
             switch_id=sw.id,
             port_number=p,
             status=PortStatus.FREE.value,
-            connection_type="Access"
+            connection_type="Access",
+            unit_id=x_unit_id
         )
         db.add(port)
     db.commit()
@@ -102,15 +110,17 @@ def create_switch(payload: SwitchCreate, db: Session = Depends(get_db)):
     return enrich_switch(sw, db)
 
 @router.put("/{switch_id}", response_model=SwitchInDB)
-def update_switch(switch_id: int, payload: SwitchUpdate, db: Session = Depends(get_db)):
-    sw = db.query(Switch).filter(Switch.id == switch_id).first()
+def update_switch(switch_id: int, payload: SwitchUpdate, db: Session = Depends(get_db), x_unit_id: int = Header(None), current_user = Depends(RequireRole(["ADMIN", "TECNICO"]))):
+    if not x_unit_id:
+        raise HTTPException(status_code=403, detail="X-Unit-ID header required")
+    sw = db.query(Switch).filter(Switch.id == switch_id, Switch.unit_id == x_unit_id).first()
     if not sw:
         raise HTTPException(status_code=404, detail="Switch não encontrado")
 
     if payload.hostname and payload.hostname != sw.hostname:
-        dup = db.query(Switch).filter(Switch.hostname == payload.hostname).first()
+        dup = db.query(Switch).filter(Switch.hostname == payload.hostname, Switch.unit_id == x_unit_id).first()
         if dup:
-            raise HTTPException(status_code=400, detail="Já existe um switch com este Hostname")
+            raise HTTPException(status_code=400, detail="Já existe um switch com este Hostname na unidade")
 
     prev_data = {"name": sw.name, "hostname": sw.hostname, "port_count": sw.port_count}
     update_data = payload.model_dump(exclude_unset=True)
@@ -124,7 +134,7 @@ def update_switch(switch_id: int, payload: SwitchUpdate, db: Session = Depends(g
         if payload.port_count > old_port_count:
             # Add new ports
             for p in range(old_port_count + 1, payload.port_count + 1):
-                port = SwitchPort(switch_id=sw.id, port_number=p, status=PortStatus.FREE.value)
+                port = SwitchPort(switch_id=sw.id, port_number=p, status=PortStatus.FREE.value, unit_id=sw.unit_id)
                 db.add(port)
         else:
             # Remove excess ports
@@ -149,8 +159,10 @@ def update_switch(switch_id: int, payload: SwitchUpdate, db: Session = Depends(g
     return enrich_switch(sw, db)
 
 @router.delete("/{switch_id}")
-def delete_switch(switch_id: int, db: Session = Depends(get_db)):
-    sw = db.query(Switch).filter(Switch.id == switch_id).first()
+def delete_switch(switch_id: int, db: Session = Depends(get_db), x_unit_id: int = Header(None), current_user = Depends(RequireRole(["ADMIN"]))):
+    if not x_unit_id:
+        raise HTTPException(status_code=403, detail="X-Unit-ID header required")
+    sw = db.query(Switch).filter(Switch.id == switch_id, Switch.unit_id == x_unit_id).first()
     if not sw:
         raise HTTPException(status_code=404, detail="Switch não encontrado")
 
@@ -179,11 +191,16 @@ def update_switch_port(
     switch_id: int,
     port_number: int,
     payload: SwitchPortUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_unit_id: int = Header(None),
+    current_user = Depends(RequireRole(["ADMIN", "TECNICO"]))
 ):
+    if not x_unit_id:
+        raise HTTPException(status_code=403, detail="X-Unit-ID header required")
     port = db.query(SwitchPort).filter(
         SwitchPort.switch_id == switch_id,
-        SwitchPort.port_number == port_number
+        SwitchPort.port_number == port_number,
+        SwitchPort.unit_id == x_unit_id
     ).first()
 
     if not port:
@@ -198,9 +215,9 @@ def update_switch_port(
 
     # Inline Location Creation
     if payload.new_location_name and not payload.destination_location_id:
-        loc = db.query(Location).filter(Location.name == payload.new_location_name).first()
+        loc = db.query(Location).filter(Location.name == payload.new_location_name, Location.unit_id == x_unit_id).first()
         if not loc:
-            loc = Location(name=payload.new_location_name)
+            loc = Location(name=payload.new_location_name, unit_id=x_unit_id)
             db.add(loc)
             db.commit()
             db.refresh(loc)
@@ -208,12 +225,13 @@ def update_switch_port(
 
     # Inline Device Creation
     if payload.new_device_name and not payload.connected_device_id:
-        dev = db.query(Device).filter(Device.name == payload.new_device_name).first()
+        dev = db.query(Device).filter(Device.name == payload.new_device_name, Device.unit_id == x_unit_id).first()
         if not dev:
             dev = Device(
                 name=payload.new_device_name,
                 location_id=payload.destination_location_id,
-                vlan_id=payload.vlan_id
+                vlan_id=payload.vlan_id,
+                unit_id=x_unit_id
             )
             db.add(dev)
             db.commit()

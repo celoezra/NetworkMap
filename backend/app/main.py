@@ -4,7 +4,7 @@ import uvicorn
 
 from app.database.connection import init_db
 from app.routers import (
-    dashboard, racks, switches, locations, vlans, devices, search, network_map, system
+    dashboard, racks, switches, locations, vlans, devices, search, network_map, system, users, admin
 )
 from app.utils.logger import logger
 
@@ -34,6 +34,8 @@ app.include_router(search.router)
 app.include_router(search.connections_router)
 app.include_router(network_map.router)
 app.include_router(system.router)
+app.include_router(users.router)
+app.include_router(admin.router)
 
 @app.on_event("startup")
 def startup_event():

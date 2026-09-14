@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Header, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, String, cast
 from typing import List, Dict, Any
@@ -6,18 +6,24 @@ from app.database.connection import get_db
 from app.models.domain import Device, Switch, SwitchPort, Rack, Location, VLAN, Connection
 from app.schemas.domain import ConnectionCreate, ConnectionInDB
 from app.services.audit import log_audit
+from app.security.auth import RequireRole
 
 router = APIRouter(prefix="/api/search", tags=["Global Search & Connections"])
 
 @router.get("")
 def global_search(
     q: str = Query(..., min_length=1, description="Termo de pesquisa"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_unit_id: int = Header(None),
+    current_user = Depends(RequireRole(["ADMIN", "TECNICO", "VISUALIZACAO"]))
 ) -> Dict[str, Any]:
+    if not x_unit_id:
+        raise HTTPException(status_code=403, detail="X-Unit-ID header required")
     term = f"%{q}%"
 
     # 1. Search Devices
     devices = db.query(Device).filter(
+        Device.unit_id == x_unit_id,
         or_(
             Device.name.ilike(term),
             Device.hostname.ilike(term),
@@ -58,6 +64,7 @@ def global_search(
 
     # 2. Search Switches
     switches = db.query(Switch).filter(
+        Switch.unit_id == x_unit_id,
         or_(
             Switch.name.ilike(term),
             Switch.hostname.ilike(term),
@@ -78,18 +85,21 @@ def global_search(
 
     # 3. Search Racks
     racks = db.query(Rack).filter(
+        Rack.unit_id == x_unit_id,
         or_(Rack.name.ilike(term), Rack.location_description.ilike(term))
     ).all()
     rack_results = [{"type": "rack", "id": r.id, "name": r.name, "location": r.location_description} for r in racks]
 
     # 4. Search Locations
     locations = db.query(Location).filter(
+        Location.unit_id == x_unit_id,
         or_(Location.name.ilike(term), Location.sector.ilike(term))
     ).all()
     location_results = [{"type": "location", "id": l.id, "name": l.name, "sector": l.sector} for l in locations]
 
     # 5. Search VLANs
     vlans = db.query(VLAN).filter(
+        VLAN.unit_id == x_unit_id,
         or_(VLAN.name.ilike(term), cast(VLAN.vlan_number, String).ilike(term))
     ).all()
     vlan_results = [{"type": "vlan", "id": v.id, "vlan_number": v.vlan_number, "name": v.name} for v in vlans]
@@ -108,8 +118,10 @@ def global_search(
 connections_router = APIRouter(prefix="/api/connections", tags=["Connections"])
 
 @connections_router.get("", response_model=List[ConnectionInDB])
-def list_connections(db: Session = Depends(get_db)):
-    conns = db.query(Connection).all()
+def list_connections(db: Session = Depends(get_db), x_unit_id: int = Header(None), current_user = Depends(RequireRole(["ADMIN", "TECNICO", "VISUALIZACAO"]))):
+    if not x_unit_id:
+        raise HTTPException(status_code=403, detail="X-Unit-ID header required")
+    conns = db.query(Connection).filter(Connection.unit_id == x_unit_id).all()
     res = []
     for c in conns:
         res.append(ConnectionInDB(
@@ -126,16 +138,19 @@ def list_connections(db: Session = Depends(get_db)):
     return res
 
 @connections_router.post("", response_model=ConnectionInDB, status_code=201)
-def create_connection(payload: ConnectionCreate, db: Session = Depends(get_db)):
-    sp = db.query(SwitchPort).filter(SwitchPort.id == payload.source_port_id).first()
-    tp = db.query(SwitchPort).filter(SwitchPort.id == payload.target_port_id).first()
+def create_connection(payload: ConnectionCreate, db: Session = Depends(get_db), x_unit_id: int = Header(None), current_user = Depends(RequireRole(["ADMIN", "TECNICO"]))):
+    if not x_unit_id:
+        raise HTTPException(status_code=403, detail="X-Unit-ID header required")
+    sp = db.query(SwitchPort).filter(SwitchPort.id == payload.source_port_id, SwitchPort.unit_id == x_unit_id).first()
+    tp = db.query(SwitchPort).filter(SwitchPort.id == payload.target_port_id, SwitchPort.unit_id == x_unit_id).first()
     if not sp or not tp:
-        raise HTTPException(status_code=404, detail="Uma ou ambas as portas especificadas não foram encontradas")
+        raise HTTPException(status_code=404, detail="Uma ou ambas as portas especificadas não foram encontradas na unidade")
 
     conn = Connection(
         source_port_id=payload.source_port_id,
         target_port_id=payload.target_port_id,
-        description=payload.description
+        description=payload.description,
+        unit_id=x_unit_id
     )
     db.add(conn)
 

@@ -1,13 +1,16 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 from app.database.connection import get_db
 from app.models.domain import Rack, Switch, SwitchPort, Device, Location, VLAN, Connection
+from app.security.auth import RequireRole
 
 router = APIRouter(prefix="/api/network-map", tags=["Network Map Graph Data"])
 
 @router.get("")
-def get_network_map_graph(db: Session = Depends(get_db)) -> Dict[str, Any]:
+def get_network_map_graph(db: Session = Depends(get_db), x_unit_id: int = Header(None), current_user = Depends(RequireRole(["ADMIN", "TECNICO", "VISUALIZACAO"]))) -> Dict[str, Any]:
+    if not x_unit_id:
+        raise HTTPException(status_code=403, detail="X-Unit-ID header required")
     """
     Generates React Flow nodes and edges dynamically based on real network entities.
     Hierarchy:
@@ -16,10 +19,10 @@ def get_network_map_graph(db: Session = Depends(get_db)) -> Dict[str, Any]:
     nodes = []
     edges = []
 
-    racks = db.query(Rack).all()
-    switches = db.query(Switch).all()
-    connections = db.query(Connection).all()
-    devices = db.query(Device).all()
+    racks = db.query(Rack).filter(Rack.unit_id == x_unit_id).all()
+    switches = db.query(Switch).filter(Switch.unit_id == x_unit_id).all()
+    connections = db.query(Connection).filter(Connection.unit_id == x_unit_id).all()
+    devices = db.query(Device).filter(Device.unit_id == x_unit_id).all()
 
     # Track positioning layout coordinates
     rack_x = 50

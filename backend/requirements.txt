@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+alembic
+pydantic
+PyJWT[crypto]
+requests
+python-multipart
+pytest
+httpx
+sqlcipher3-binary

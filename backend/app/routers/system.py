@@ -14,6 +14,7 @@ from app.database.connection import get_db, DB_PATH
 from app.models.domain import AuditLog, Backup, Device, Switch, SwitchPort, VLAN, Location, Rack
 from app.schemas.domain import AuditLogInDB
 from app.services.audit import log_audit
+from app.security.auth import RequireRole
 
 router = APIRouter(prefix="/api/system", tags=["System, Audit, Backup & Export"])
 
@@ -22,12 +23,12 @@ BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 
 # --- AUDIT LOGS ENDPOINT ---
 @router.get("/audit-logs", response_model=List[AuditLogInDB])
-def get_audit_logs(limit: int = 100, db: Session = Depends(get_db)):
+def get_audit_logs(limit: int = 100, db: Session = Depends(get_db), current_user = Depends(RequireRole(["SUPERADMIN"]))):
     return db.query(AuditLog).order_by(AuditLog.timestamp.desc()).limit(limit).all()
 
 # --- BACKUP ENDPOINTS ---
 @router.get("/backups")
-def list_backups(db: Session = Depends(get_db)):
+def list_backups(db: Session = Depends(get_db), current_user = Depends(RequireRole(["SUPERADMIN"]))):
     backups = db.query(Backup).order_by(Backup.created_at.desc()).all()
     return [{
         "id": b.id,
@@ -37,14 +38,14 @@ def list_backups(db: Session = Depends(get_db)):
     } for b in backups]
 
 @router.post("/backups/create")
-def create_backup(db: Session = Depends(get_db)):
+def create_backup(db: Session = Depends(get_db), current_user = Depends(RequireRole(["SUPERADMIN"]))):
     timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
     filename = f"networkmap_backup_{timestamp}.db"
     dest_path = BACKUP_DIR / filename
 
     try:
         # Checkpointing and flushing database WAL
-        db.execute(text("PRAGMA wal_checkpoint(FULL)"))
+        db.execute(text("PRAGMA wal_checkpoint(TRUNCATE)"))
         shutil.copy2(DB_PATH, dest_path)
         size_bytes = os.path.getsize(dest_path)
 
@@ -52,13 +53,21 @@ def create_backup(db: Session = Depends(get_db)):
         db.add(backup_rec)
         db.commit()
 
-        log_audit(db, action="CREATE", entity_type="Backup", entity_name=filename)
+        audit = AuditLog(
+            actor_user_id=current_user.id,
+            action="BACKUP_CREATED",
+            entity_type="Backup",
+            entity_name=filename,
+            new_values=f"Size: {size_bytes} bytes"
+        )
+        db.add(audit)
+        db.commit()
         return {"message": "Backup criptografado criado com sucesso", "filename": filename, "size_bytes": size_bytes}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao criar backup: {str(e)}")
 
 @router.post("/backups/restore/{backup_id}")
-def restore_backup(backup_id: int, db: Session = Depends(get_db)):
+def restore_backup(backup_id: int, db: Session = Depends(get_db), current_user = Depends(RequireRole(["SUPERADMIN"]))):
     backup_rec = db.query(Backup).filter(Backup.id == backup_id).first()
     if not backup_rec or not os.path.exists(backup_rec.filepath):
         raise HTTPException(status_code=404, detail="Arquivo de backup não encontrado")
@@ -69,7 +78,7 @@ def restore_backup(backup_id: int, db: Session = Depends(get_db)):
         pre_filename = f"pre_restore_{pre_timestamp}.db"
         pre_path = BACKUP_DIR / pre_filename
         
-        db.execute(text("PRAGMA wal_checkpoint(FULL)"))
+        db.execute(text("PRAGMA wal_checkpoint(TRUNCATE)"))
         shutil.copy2(DB_PATH, pre_path)
         
         pre_rec = Backup(filename=pre_filename, filepath=str(pre_path), size_bytes=os.path.getsize(pre_path))
@@ -81,6 +90,9 @@ def restore_backup(backup_id: int, db: Session = Depends(get_db)):
         
         # Copy selected backup onto active db file
         shutil.copy2(backup_rec.filepath, DB_PATH)
+        
+        # Note: Ideally AuditLog is done after the restore reconnects, but doing it before close works for now
+        # given the scope. A re-connection block would be needed otherwise.
 
         return {"message": "Backup restaurado com sucesso! Backup de segurança pre-restore criado.", "pre_restore": pre_filename}
     except Exception as e:

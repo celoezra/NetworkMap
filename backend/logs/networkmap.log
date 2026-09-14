@@ -1,0 +1,44 @@
+[2026-09-14 01:23:34,003] [INFO] [networkmap.security]: Generated new encrypted database master key.
+[2026-09-14 01:33:48,866] [INFO] [networkmap]: Iniciando backend da Aplicação NetworkMap...
+[2026-09-14 01:33:49,083] [INFO] [networkmap]: Database schema verified and initialized successfully.
+[2026-09-14 01:33:51,139] [INFO] [networkmap]: Bootstrapping initial SUPERADMIN account for marcelo.romero@rededor.com.br
+[2026-09-14 01:44:27,887] [INFO] [networkmap]: Iniciando backend da Aplicação NetworkMap...
+[2026-09-14 01:44:28,102] [INFO] [networkmap]: Database schema verified and initialized successfully.
+[2026-09-14 01:45:12,705] [INFO] [networkmap]: Iniciando backend da Aplicação NetworkMap...
+[2026-09-14 01:45:12,917] [INFO] [networkmap]: Database schema verified and initialized successfully.
+[2026-09-14 01:45:53,375] [INFO] [networkmap]: Iniciando backend da Aplicação NetworkMap...
+[2026-09-14 01:45:53,614] [INFO] [networkmap]: Database schema verified and initialized successfully.
+[2026-09-14 01:51:49,169] [INFO] [networkmap]: Iniciando backend da Aplicação NetworkMap...
+[2026-09-14 01:51:49,384] [INFO] [networkmap]: Database schema verified and initialized successfully.
+[2026-09-14 01:54:35,497] [INFO] [networkmap]: Iniciando backend da Aplicação NetworkMap...
+[2026-09-14 01:54:35,720] [INFO] [networkmap]: Database schema verified and initialized successfully.
+[2026-09-14 02:01:43,830] [INFO] [networkmap]: Iniciando backend da Aplicação NetworkMap...
+[2026-09-14 02:01:44,043] [INFO] [networkmap]: Database schema verified and initialized successfully.
+[2026-09-14 02:04:23,816] [ERROR] [networkmap]: Token validation failed: Token is missing required Microsoft claims (oid, tid)
+[2026-09-14 02:04:23,825] [ERROR] [networkmap]: Token has expired.
+[2026-09-14 02:04:24,123] [INFO] [networkmap]: Creating new PENDING user request for test@test.com
+[2026-09-14 02:04:24,593] [INFO] [networkmap]: Creating new PENDING user request for marcelo.romero@rededor.com.br
+[2026-09-14 02:04:26,526] [INFO] [networkmap]: Creating new PENDING user request for changed@rededor.com.br
+[2026-09-14 02:04:26,981] [INFO] [networkmap]: Creating new PENDING user request for normal@test.com
+[2026-09-14 02:05:54,979] [ERROR] [networkmap]: Token validation failed: Token is missing required Microsoft claims (oid, tid)
+[2026-09-14 02:05:54,987] [ERROR] [networkmap]: Token has expired.
+[2026-09-14 02:08:12,443] [ERROR] [networkmap]: Token validation failed: Token is missing required Microsoft claims (oid, tid)
+[2026-09-14 02:08:12,452] [ERROR] [networkmap]: Token has expired.
+[2026-09-14 02:10:30,855] [ERROR] [networkmap]: Token validation failed: Token is missing required Microsoft claims (oid, tid)
+[2026-09-14 02:10:30,864] [ERROR] [networkmap]: Token has expired.
+[2026-09-14 02:12:03,546] [ERROR] [networkmap]: Token validation failed: Token is missing required Microsoft claims (oid, tid)
+[2026-09-14 02:12:03,560] [ERROR] [networkmap]: Token has expired.
+[2026-09-14 02:12:03,572] [ERROR] [networkmap]: Token has invalid audience.
+[2026-09-14 02:22:46,573] [INFO] [networkmap]: Iniciando backend da Aplicação NetworkMap...
+[2026-09-14 02:22:46,787] [INFO] [networkmap]: Database schema verified and initialized successfully.
+[2026-09-14 02:38:27,287] [ERROR] [networkmap]: Token validation failed: Token is missing required Microsoft claims (oid, tid)
+[2026-09-14 02:38:27,297] [ERROR] [networkmap]: Token has expired.
+[2026-09-14 02:38:27,307] [ERROR] [networkmap]: Token has invalid audience.
+[2026-09-14 02:44:16,450] [ERROR] [networkmap]: Token validation failed: Token is missing required Microsoft claims (oid, tid)
+[2026-09-14 02:44:16,459] [ERROR] [networkmap]: Token has expired.
+[2026-09-14 02:44:16,466] [ERROR] [networkmap]: Token has invalid audience.
+[2026-09-14 02:46:03,730] [INFO] [networkmap]: Iniciando backend da Aplicação NetworkMap...
+[2026-09-14 02:46:03,942] [INFO] [networkmap]: Database schema verified and initialized successfully.
+[2026-09-14 00:42:43,127] [INFO] [networkmap]: Iniciando backend da Aplicação NetworkMap...
+[2026-09-14 00:42:43,128] [INFO] [networkmap.security]: Generated new encrypted database master key.
+[2026-09-14 00:42:43,432] [INFO] [networkmap]: Database schema verified and initialized successfully.

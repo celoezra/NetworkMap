@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.database.connection import get_db
 from app.models.domain import Device, SwitchPort, Location, VLAN, PortStatus
 from app.schemas.domain import DeviceCreate, DeviceUpdate, DeviceInDB
 from app.services.audit import log_audit
+from app.security.auth import RequireRole
 
 router = APIRouter(prefix="/api/devices", tags=["Devices"])
 
@@ -38,24 +39,30 @@ def enrich_device(device: Device, db: Session) -> DeviceInDB:
     )
 
 @router.get("", response_model=List[DeviceInDB])
-def list_devices(db: Session = Depends(get_db)):
-    devices = db.query(Device).all()
+def list_devices(db: Session = Depends(get_db), x_unit_id: int = Header(None), current_user = Depends(RequireRole(["ADMIN", "TECNICO", "VISUALIZACAO"]))):
+    if not x_unit_id:
+        raise HTTPException(status_code=403, detail="X-Unit-ID header required")
+    devices = db.query(Device).filter(Device.unit_id == x_unit_id).all()
     return [enrich_device(d, db) for d in devices]
 
 @router.get("/{device_id}", response_model=DeviceInDB)
-def get_device(device_id: int, db: Session = Depends(get_db)):
-    dev = db.query(Device).filter(Device.id == device_id).first()
+def get_device(device_id: int, db: Session = Depends(get_db), x_unit_id: int = Header(None), current_user = Depends(RequireRole(["ADMIN", "TECNICO", "VISUALIZACAO"]))):
+    if not x_unit_id:
+        raise HTTPException(status_code=403, detail="X-Unit-ID header required")
+    dev = db.query(Device).filter(Device.id == device_id, Device.unit_id == x_unit_id).first()
     if not dev:
         raise HTTPException(status_code=404, detail="Equipamento não encontrado")
     return enrich_device(dev, db)
 
 @router.post("", response_model=DeviceInDB, status_code=201)
-def create_device(payload: DeviceCreate, db: Session = Depends(get_db)):
+def create_device(payload: DeviceCreate, db: Session = Depends(get_db), x_unit_id: int = Header(None), current_user = Depends(RequireRole(["ADMIN", "TECNICO"]))):
+    if not x_unit_id:
+        raise HTTPException(status_code=403, detail="X-Unit-ID header required")
     switch_id = payload.switch_id
     port_id = payload.port_id
     
     dev_data = payload.model_dump(exclude={"switch_id", "port_id"})
-    device = Device(**dev_data)
+    device = Device(**dev_data, unit_id=x_unit_id)
     db.add(device)
     db.commit()
     db.refresh(device)
@@ -79,8 +86,10 @@ def create_device(payload: DeviceCreate, db: Session = Depends(get_db)):
     return enrich_device(device, db)
 
 @router.put("/{device_id}", response_model=DeviceInDB)
-def update_device(device_id: int, payload: DeviceUpdate, db: Session = Depends(get_db)):
-    dev = db.query(Device).filter(Device.id == device_id).first()
+def update_device(device_id: int, payload: DeviceUpdate, db: Session = Depends(get_db), x_unit_id: int = Header(None), current_user = Depends(RequireRole(["ADMIN", "TECNICO"]))):
+    if not x_unit_id:
+        raise HTTPException(status_code=403, detail="X-Unit-ID header required")
+    dev = db.query(Device).filter(Device.id == device_id, Device.unit_id == x_unit_id).first()
     if not dev:
         raise HTTPException(status_code=404, detail="Equipamento não encontrado")
 
@@ -101,8 +110,10 @@ def update_device(device_id: int, payload: DeviceUpdate, db: Session = Depends(g
     return enrich_device(dev, db)
 
 @router.delete("/{device_id}")
-def delete_device(device_id: int, db: Session = Depends(get_db)):
-    dev = db.query(Device).filter(Device.id == device_id).first()
+def delete_device(device_id: int, db: Session = Depends(get_db), x_unit_id: int = Header(None), current_user = Depends(RequireRole(["ADMIN"]))):
+    if not x_unit_id:
+        raise HTTPException(status_code=403, detail="X-Unit-ID header required")
+    dev = db.query(Device).filter(Device.id == device_id, Device.unit_id == x_unit_id).first()
     if not dev:
         raise HTTPException(status_code=404, detail="Equipamento não encontrado")
 

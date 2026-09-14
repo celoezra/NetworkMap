@@ -24,9 +24,10 @@ interface LayoutProps {
   setCurrentTab: (tab: string) => void;
   children: React.ReactNode;
   onSelectEntity?: (type: string, id: number) => void;
+  headerRight?: React.ReactNode;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ currentTab, setCurrentTab, children, onSelectEntity }) => {
+export const Layout: React.FC<LayoutProps> = ({ currentTab, setCurrentTab, children, onSelectEntity, headerRight }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -257,14 +258,19 @@ export const Layout: React.FC<LayoutProps> = ({ currentTab, setCurrentTab, child
               )}
             </div>
 
-            {/* Dark Mode Toggle */}
-            <button
-              onClick={() => setDarkMode(!darkMode)}
-              className="p-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition"
-              title="Alternar Modo Escuro"
-            >
-              {darkMode ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5" />}
-            </button>
+            {/* Action Bar Right */}
+            <div className="flex items-center space-x-4">
+              {headerRight}
+
+              {/* Dark Mode Toggle */}
+              <button
+                onClick={() => setDarkMode(!darkMode)}
+                className="p-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition"
+                title="Alternar Modo Escuro"
+              >
+                {darkMode ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5" />}
+              </button>
+            </div>
           </div>
         </header>
 
